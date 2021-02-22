@@ -1,0 +1,86 @@
+import numpy
+import pandas
+import datetime
+import requests
+
+nasdaq_stocks_url = "https://dumbstockapi.com/stock?format=csv&exchanges=NASDAQ"
+nyse_stocks_url = "https://dumbstockapi.com/stock?format=csv&exchanges=NYSE"
+
+stock_data_location = "C:/Users/morga/Documents/Stock Data"
+
+def update_tradable_tickers():
+    nyse_tickers = pandas.read_csv(nyse_stocks_url)
+    nasdaq_tickers = pandas.read_csv(nasdaq_stocks_url)
+
+    #combine
+    all_tickers = pandas.concat([nyse_tickers, nasdaq_tickers])
+
+    #remove rows other than ticker and exchange
+    all_tickers = all_tickers.drop(labels=["is_etf", "name"], axis=1)
+
+    #remove duplicates (not needed)
+    #all_tickers.drop_duplicates()
+
+    #sort alphabetically based on ticker
+    all_tickers = all_tickers.sort_values(by="ticker")
+
+    #reset the indexes
+    all_tickers = all_tickers.reset_index(drop=True)
+
+    #write to computer
+    all_tickers.to_csv(stock_data_location + "/tradable_tickers.csv")
+
+def update_iex_tickers():
+    headers = {
+        'Content-Type': 'application/json'
+    }
+    requestResponse = requests.get("https://api.tiingo.com/iex/?token=bab507258bcd54db87fb178ad1be94a45fddf0d2", headers=headers)
+    stock_listings = pandas.read_json(requestResponse.content)
+    tickers = stock_listings['ticker']
+    tickers.to_csv(stock_data_location + "/tickers.csv", index=False)
+
+def get_iex_tickers():
+    tickers = pandas.read_csv(stock_data_location + "/tickers.csv")
+    return tickers
+
+def get_spec_tickers():
+    tickers = pandas.read_csv(stock_data_location + "/tradable_tickers.csv")
+    return tickers
+
+def get_ticker_data_5_min(ticker_symbol):
+    #date range for first data set
+    enddate = numpy.busday_offset(datetime.date.today(), 0, roll="backward").astype(datetime.date)
+    startdate = numpy.busday_offset(enddate, -124, roll="forward").astype(datetime.date)
+
+    #get ticker data for the enddate and startdate
+    def get_ticker_data():
+        headers = {
+            'Content-Type': 'application/json'
+        }
+
+        url = "https://api.tiingo.com/iex/" + ticker_symbol + "/prices?" + "resampleFreq=5min&columns=open,high,low,close,volume&token=bab507258bcd54db87fb178ad1be94a45fddf0d2&startDate=" + startdate.strftime("%Y-%m-%d") + "&endDate=" + enddate.strftime("%Y-%m-%d")
+        requestResponse = requests.get(url, headers=headers)
+
+        #because of holidays, if you request data for a holiday, it will return the data of the nearest business day. Thus, make a conditional that checks if the requested date is different than the actual date, or find a way to check for business dates instead of weekdays in the loop below
+
+        stock_data = pandas.read_json(requestResponse.content)
+        return stock_data
+
+    #get data
+    ticker_data = [get_ticker_data()]
+
+    #set next date range
+    enddate = numpy.busday_offset(startdate, -1, roll="backward").astype(datetime.date)
+    startdate = numpy.busday_offset(enddate, -125, roll="forward").astype(datetime.date)
+
+    #get data and add it to list of data
+    ticker_data += [get_ticker_data()]
+
+    #reverse data array for correct date ordering
+    ticker_data.reverse()
+
+    #join data
+    ticker_data = pandas.concat(ticker_data)
+
+    #write as cav file
+    pandas.DataFrame.to_csv(ticker_data, stock_data_location + "/" + ticker_symbol + "_5min_stock_data.csv")
