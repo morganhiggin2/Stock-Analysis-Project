@@ -17,6 +17,7 @@ nyse_stocks_url = "https://dumbstockapi.com/stock?format=csv&exchanges=NYSE"
 
 stock_data_location = "C:/Users/morga/Documents/Stock Data"
 
+#updates the list of tradable tickers
 def update_tradable_tickers():
     nyse_tickers = pandas.read_csv(nyse_stocks_url)
     nasdaq_tickers = pandas.read_csv(nasdaq_stocks_url)
@@ -39,6 +40,7 @@ def update_tradable_tickers():
     #write to computer
     all_tickers.to_csv(stock_data_location + "/tradable_tickers.csv", index=False)
 
+#updates the list of iex tickers
 def update_iex_tickers():
     headers = {
         'Content-Type': 'application/json'
@@ -48,10 +50,12 @@ def update_iex_tickers():
     tickers = stock_listings['ticker']
     tickers.to_csv(stock_data_location + "/tickers.csv", index=False)
 
+#get the list iex tickers and return pandas dataframe
 def get_iex_tickers():
     tickers = pandas.read_csv(stock_data_location + "/tickers.csv")
     return tickers
 
+#get a pandas dataframe of tradable tickers
 def get_tradable_tickers():
     #get tickers
     tickers = pandas.read_csv(stock_data_location + "/tradable_tickers.csv")["ticker"]
@@ -67,10 +71,13 @@ def get_tradable_tickers():
     #return it
     return tradable_tickers
 
+#get the complete 5 min data for a specific ticker
 def get_ticker_data_5_min(ticker_symbol):
     return pandas.read_csv(stock_data_location + "/" + "5_min" + "/" + ticker_symbol + "_5min_stock_data.csv")
 
 #retive data from tiingo
+
+#get 5 min data for a ticker from the tiingo website
 def retrieve_ticker_data_5_min(ticker_symbol):
     #date range for first data set
     enddate = numpy.busday_offset(datetime.date.today(), 0, roll="backward").astype(datetime.date)
@@ -85,7 +92,10 @@ def retrieve_ticker_data_5_min(ticker_symbol):
         url = "https://api.tiingo.com/iex/" + ticker_symbol + "/prices?" + "resampleFreq=5min&columns=open,high,low,close,volume&token=bab507258bcd54db87fb178ad1be94a45fddf0d2&startDate=" + startdate.strftime("%Y-%m-%d") + "&endDate=" + enddate.strftime("%Y-%m-%d")
         requestResponse = requests.get(url, headers=headers)
 
-        #because of holidays, if you request data for a holiday, it will return the data of the nearest business day. Thus, make a conditional that checks if the requested date is different than the actual date, or find a way to check for business dates instead of weekdays in the loop below
+        #NEED TO IMPLEMENT
+        #because of holidays, if you request data for a holiday, it will return the data of the nearest business day.
+        #Thus, make a conditional that checks if the requested date is different than the actual date, or find a way to check for business dates instead of weekdays in the loop below
+
 
         stock_data = pandas.read_json(requestResponse.content)
         return stock_data
@@ -109,6 +119,7 @@ def retrieve_ticker_data_5_min(ticker_symbol):
     #write as csv file
     pandas.DataFrame.to_csv(ticker_data, stock_data_location + "/" + "5_min" + "/" + ticker_symbol + "_5min_stock_data.csv", index=False)
 
+#get all the data in one table for the tradable tickers
 def get_tradable_ticker_data():
     tickers = get_tradable_tickers()
 
@@ -169,6 +180,8 @@ def get_tradable_ticker_data():
     #write as cav file
     pandas.DataFrame.to_csv(ticker_data, stock_data_location + "/" + the_frequency + "/" + ticker_symbol + the_frequency + "_stock_data.csv", index=False)'''
 
+#get read tickers into a pandas dataframe
+#read tickers is a list of tickers that have been read and who's stock data has been read
 def get_read_tickers():
     return pandas.read_csv(stock_data_location + "/read_tickers.csv")
 
@@ -190,9 +203,10 @@ def fit_day_5_min(ticker_symbol):
 
 
 
-#EOD Data
+#EOD Data -------------------------------------------------------------------------------------------------------------------
 
 #this should belong in the "extract statistics" file (create one)
+#take the eod data and reorganize it, into a pandas dataframe, and save the file
 def organize_eod_data():
     #get list of files in directory
     files = os.listdir(read_path)
@@ -232,7 +246,7 @@ def organize_eod_data():
     day_only_data = day_data[["day", "is_weeks_first", "is_weeks_end"]].drop_duplicates()
     day_only_data.to_csv(write_path + "/info/day_only_data.csv", index=False)
 
-    #get percentage of data points for the day per how many should be there for each ticker and for each day
+    #get percentage of data points for the day (that exist in the file, because this is crappy data) per how many should be there for each ticker and for each day
     missing_error_margin = data[["ticker", "day", "minute"]].groupby(["ticker", "day"]).count().reset_index()
     missing_error_margin.columns = ["ticker", "day", "count"]
     missing_error_margin["count"] = missing_error_margin["count"] * 1000 // 79 / 1000
@@ -254,7 +268,7 @@ def organize_eod_data():
     ticker_info["mean"] = ticker_info["mean"] * 1000 // 1 / 1000
     ticker_info["std"] = ticker_info["std"] * 1000 // 1 / 1000
 
-    #get rid of ones that are out of range and do not appear all the time in every day of the data
+    #get rid of ones that are out of range (that do not have enough of the data) and do not appear all the time in every day of the data
     tickers_to_be_kept = ticker_info[numpy.logical_and(ticker_info["count"] == number_of_days, ticker_info["mean"] >= 0.974)]["ticker"]
     tickers_that_might_work = ticker_info[numpy.logical_and(ticker_info["count"] == number_of_days, numpy.logical_and(ticker_info["mean"] < 0.974, ticker_info["mean"] > 0.759))]["ticker"]
     total_tickers = pandas.concat([tickers_that_might_work, tickers_to_be_kept])
@@ -264,7 +278,7 @@ def organize_eod_data():
     data = data.reset_index()
     data.__delitem__("index")
 
-    #apply this to other DataFrames
+    #apply this to other DataFrames (keep only the tickers that we determined to keep from the previous section)
     ticker_info = ticker_info[ticker_info["ticker"].isin(total_tickers["ticker"])]
 
     #write the data
@@ -276,7 +290,7 @@ def organize_eod_data():
     temp_data.columns = ["ticker", "starting_price"]
     ticker_info = ticker_info.merge(temp_data)
 
-    #make array that takes starting price and expands it to "close" column length, then divide the two
+    #make array that takes starting price and expands it to "close" column length, then divide the two (the result is a ratio of the closing price over the starting price for each day of data)
     expanded_starting_price = pandas.merge(data["ticker"], ticker_info[["ticker", "starting_price"]]).reset_index()
     data = data.sort_values(["ticker", "day"]).reset_index()
     data.__delitem__("index")
@@ -296,8 +310,6 @@ def organize_eod_data():
     # volatility for a given day
     day_data["volatility"] = temp_data.groupby(["ticker", "day"]).mean().reset_index(inplace=False)["change"] / pandas.merge(day_data["ticker"], ticker_info[["ticker", "volatility_index"]])["volatility_index"]
 
-    print(day_data["volatility"])
-
     #change first values to be close/open - 1
     temp_grouped_data = data[["ticker", "open", "close"]].groupby("ticker")["ticker"].cumcount()
     data.loc[temp_grouped_data == 0, "change"] = data.loc[temp_grouped_data == 0, "close"] / data.loc[temp_grouped_data == 0, "open"] - 1
@@ -306,10 +318,12 @@ def organize_eod_data():
     data["change"] = data["change"].fillna(0)
 
     #volatility index (1 point = average percentage movement for a given  time interval)
-    #temp_data = data[["ticker", "change"]]
-    #temp_data["change"] = temp_data["change"].abs()
-    #temp_data.columns = ["ticker", "movement_index"]
-    #ticker_info = ticker_info.merge(temp_data.groupby("ticker").mean().reset_index(inplace=False))
+    #(now called the movement index, which is found below)
+        #temp_data = data[["ticker", "change"]]
+        #temp_data["change"] = temp_data["change"].abs()
+        #temp_data.columns = ["ticker", "movement_index"]
+        #ticker_info = ticker_info.merge(temp_data.groupby("ticker").mean().reset_index(inplace=False))
+
     temp_data = day_data[["ticker", "open", "close"]]
     temp_data["movement_index"] = ((temp_data["close"] - temp_data["open"]) / temp_data["close"]).abs() #is the difference, but naming it movement_index so I don't have to rename it in ticker_info
     ticker_info = ticker_info.merge(temp_data[["ticker", "movement_index"]].groupby("ticker").mean().reset_index(inplace=False))
@@ -320,7 +334,7 @@ def organize_eod_data():
     #volatility close (each new day has 0 as the open)
     data["movement_close"] = ((data["percent_close"] / (pandas.merge(data[["ticker", "day"]], data[["ticker", "day", "percent_close"]].groupby(["ticker", "day"]).first().reset_index(inplace=False))["percent_close"])) - 1) / pandas.merge(data["ticker"], ticker_info[["ticker", "movement_index"]])["movement_index"]
 
-    # remove outliers from begining in data compilation
+    # remove outliers (remove data that had too much volatility, out of range) from begining in data compilation
     new_data = data[["ticker", "day", "minute", "movement_close"]].groupby(["ticker", "day"], as_index=False)
 
     def reject_outliers(data):
@@ -332,7 +346,7 @@ def organize_eod_data():
     conformed_data.__delitem__("level_0")
     conformed_data.__delitem__("level_1")
 
-    #best fit day data
+    #best fit day data (used for our algorithm)
     temp_grouped_data = conformed_data.groupby(["ticker", "day"], as_index=False)
 
     #account for day before christmas and day before thanksgiving
@@ -412,6 +426,8 @@ def plot_equation(a, b, c, d):
     plot.title("an equation")
     plot.show()
 
+#there are buhch of organize by type of day's, which are all my attempts at implementing my algorithm of organizing the data into types of days by the a, b, c, and d from the fitting
+#this is still a work in progress
 def organize_by_type_of_day(day_data):
     #gonna have to add the .loc to everything
     #adapt to allow for approximatly 0

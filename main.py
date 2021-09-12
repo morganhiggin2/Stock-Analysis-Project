@@ -1,7 +1,7 @@
 from get_data import *
 from analyze_data import *
 
-#main file
+#main file (where I would run the function from the get_data.py file to get it to do what I want (ex. get the data, organize it))
 
 def equation_grouping_analysis():
     data = pandas.read_csv(write_path + "/info/day_data.csv")
@@ -36,7 +36,7 @@ new_day_data = pandas.merge(day_data, a)
 new_day_data.to_csv(write_path + "/info/new_day_data.csv")'''
 
 #lets analyize the day_data
-'''new_day_data = pandas.read_csv(write_path + "/info/new_day_data.csv")
+new_day_data = pandas.read_csv(write_path + "/info/new_day_data.csv")
 name_of_column_one = "value_at_min"
 name_of_column_two = "max"
 new_table = new_day_data[[name_of_column_one, name_of_column_two]]
@@ -48,7 +48,7 @@ def plot_two_values(values1, values2, x_label, y_label):
     plot.ylabel(y_label)
     plot.show()
 
-plot_two_values(new_table[name_of_column_one], new_table[name_of_column_two], name_of_column_one, name_of_column_two)'''
+plot_two_values(new_table[name_of_column_one], new_table[name_of_column_two], name_of_column_one, name_of_column_two)
 analyze_intercepts(2, 0)
 #make a new table with two columsn
 #drop na columns
